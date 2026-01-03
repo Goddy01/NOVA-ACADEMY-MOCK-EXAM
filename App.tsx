@@ -600,7 +600,7 @@ const ResultView = ({ currentResult, handleReturnToDashboard, handlePrint }: any
 
           <div className="flex flex-col sm:flex-row gap-4 mt-12 no-print">
             <button onClick={handleReturnToDashboard} className="flex-1 bg-slate-900 text-white p-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-black transition-all">Back to Home</button>
-            <button onClick={handlePrint} className="flex-1 bg-white border-2 border-slate-200 text-slate-800 p-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-50 transition-all">Download Transcript (PDF)</button>
+            {/* <button onClick={handlePrint} className="flex-1 bg-white border-2 border-slate-200 text-slate-800 p-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-50 transition-all">Download Transcript (PDF)</button> */}
           </div>
           <div className="hidden print:block mt-20 border-t pt-8 text-center text-slate-300 text-[10px] font-bold uppercase tracking-widest">
             Authorized Nova Academy Document • Date: {new Date(currentResult.timestamp).toLocaleDateString()} • Code: {currentResult.accessCode}
