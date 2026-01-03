@@ -319,6 +319,7 @@ const ALLOWED_CODES = [
   'NV-5564-DM', 'NV-3391-TZ', 'NV-7810-GW', 'NV-6422-PH',
   'NV-1159-JC', 'NV-8246-KV', 'NV-3950-RM', 'NV-5077-WE',
   'NV-0859-VC', 'NV-8846-KC', 'NV-3450-MO', 'NV-5007-JE',
+  'NV-1234-AB', 'NV-5678-CD', 'NV-9101-EF', 'NV-2222-GH',
 ];
 
 // --- Cloud Storage Helper Functions (JSONBin.io) ---
