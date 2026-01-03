@@ -1,11 +1,8 @@
-// Simple cloud storage using JSONBin.io - No Firebase setup needed!
+// Cloud-only storage using JSONBin.io - No localStorage!
 // Free tier: 10,000 requests/month
 
 const JSONBIN_API_KEY = '$2a$10$bubE9G3Jgcou13efLEEhwu0YPBmCxSolN27qde.Ae0AN7WriPx2Ty'; // Get free at https://jsonbin.io/
-const BIN_ID = 'YOUR_BIN_ID'; // Will be created automatically on first save
-
-// Get your free API key: https://jsonbin.io/api-key/create
-// No registration required for free tier!
+const BIN_ID_KEY = 'jsonbin_bin_id'; // Store bin ID in sessionStorage only
 
 const API_URL = 'https://api.jsonbin.io/v3';
 
@@ -20,8 +17,8 @@ let cachedBinId: string | null = null;
 const getBinId = async (): Promise<string> => {
   if (cachedBinId) return cachedBinId;
   
-  // Try to get from localStorage first
-  const storedBinId = localStorage.getItem('jsonbin_id');
+  // Try to get from sessionStorage (temporary, session-only)
+  const storedBinId = sessionStorage.getItem(BIN_ID_KEY);
   if (storedBinId) {
     cachedBinId = storedBinId;
     return storedBinId;
@@ -37,15 +34,19 @@ const getBinId = async (): Promise<string> => {
     body: JSON.stringify({ results: [], usedCodes: [] }),
   });
   
+  if (!response.ok) {
+    throw new Error('Failed to create bin');
+  }
+  
   const data = await response.json();
   cachedBinId = data.metadata?.id || data.id;
   if (cachedBinId) {
-    localStorage.setItem('jsonbin_id', cachedBinId);
+    sessionStorage.setItem(BIN_ID_KEY, cachedBinId);
   }
   return cachedBinId || '';
 };
 
-// Load data from cloud
+// Load data from cloud only
 export const loadFromCloud = async (): Promise<StorageData> => {
   try {
     const binId = await getBinId();
@@ -64,80 +65,64 @@ export const loadFromCloud = async (): Promise<StorageData> => {
     const data = await response.json();
     return data.record || { results: [], usedCodes: [] };
   } catch (error) {
-    console.warn('Cloud load failed, using localStorage:', error);
-    // Fallback to localStorage
-    const results = JSON.parse(localStorage.getItem('nova_academy_results') || '[]');
-    const usedCodes = results.map((r: any) => r.accessCode);
-    return { results, usedCodes };
+    console.error('Failed to load from cloud:', error);
+    throw error; // Don't fallback, just throw
   }
 };
 
-// Save data to cloud
+// Save data to cloud only
 export const saveToCloud = async (results: any[], usedCodes: string[]): Promise<void> => {
-  try {
-    const binId = await getBinId();
-    if (!binId) throw new Error('No bin ID');
-    
-    const data = { results, usedCodes };
-    
-    const response = await fetch(`${API_URL}/b/${binId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Master-Key': JSONBIN_API_KEY,
-      },
-      body: JSON.stringify(data),
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to save to cloud');
-    }
-  } catch (error) {
-    console.warn('Cloud save failed, saved to localStorage only:', error);
-    // Still save to localStorage as backup
-    localStorage.setItem('nova_academy_results', JSON.stringify(results));
+  const binId = await getBinId();
+  if (!binId) throw new Error('No bin ID');
+  
+  const data = { results, usedCodes };
+  
+  const response = await fetch(`${API_URL}/b/${binId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Master-Key': JSONBIN_API_KEY,
+    },
+    body: JSON.stringify(data),
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to save to cloud');
   }
 };
 
-// Check if access code is used (checks both cloud and local)
+// Check if access code is used (cloud only)
 export const isAccessCodeUsed = async (accessCode: string): Promise<boolean> => {
-  // Check localStorage first (fast)
-  const localResults = JSON.parse(localStorage.getItem('nova_academy_results') || '[]');
-  if (localResults.some((r: any) => r.accessCode === accessCode)) {
-    return true;
-  }
-  
-  // Check cloud (for cross-device sync)
   try {
     const cloudData = await loadFromCloud();
     return cloudData.usedCodes.includes(accessCode) || 
            cloudData.results.some((r: any) => r.accessCode === accessCode);
   } catch (error) {
-    // If cloud check fails, return localStorage result
+    console.error('Failed to check access code:', error);
+    // On error, return false (allow code to be used) - better UX than blocking
     return false;
   }
 };
 
-// Save result (to both cloud and local)
+// Save result (cloud only)
 export const saveResult = async (result: any): Promise<void> => {
-  // Save to localStorage immediately
-  const existing = JSON.parse(localStorage.getItem('nova_academy_results') || '[]');
-  const updated = [...existing, result];
-  localStorage.setItem('nova_academy_results', JSON.stringify(updated));
+  // Load existing data
+  const cloudData = await loadFromCloud();
+  const updatedResults = [...cloudData.results, result];
+  const usedCodes = [...new Set([...cloudData.usedCodes, result.accessCode])];
   
-  // Sync to cloud
-  const usedCodes = updated.map((r: any) => r.accessCode);
-  await saveToCloud(updated, usedCodes);
+  // Save to cloud
+  await saveToCloud(updatedResults, usedCodes);
 };
 
-// Get all results (from cloud)
+// Get all results (from cloud only)
 export const getAllResults = async (): Promise<any[]> => {
   try {
     const cloudData = await loadFromCloud();
     return cloudData.results || [];
   } catch (error) {
-    // Fallback to localStorage
-    return JSON.parse(localStorage.getItem('nova_academy_results') || '[]');
+    console.error('Failed to get results from cloud:', error);
+    return []; // Return empty array on error
   }
 };
 
