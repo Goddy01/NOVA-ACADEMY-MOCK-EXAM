@@ -4,12 +4,9 @@
 const JSONBIN_API_KEY = '$2a$10$bubE9G3Jgcou13efLEEhwu0YPBmCxSolN27qde.Ae0AN7WriPx2Ty'; // Get free at https://jsonbin.io/
 
 // IMPORTANT: This bin ID must be the SAME across all devices for cross-device sync to work!
-// To set this up:
-// 1. Create a bin manually at https://jsonbin.io/ (or let it auto-create on first save)
-// 2. Copy the bin ID from the URL (e.g., if URL is https://jsonbin.io/app/bins/65abc123..., the ID is 65abc123...)
-// 3. Replace 'YOUR_SHARED_BIN_ID' below with that ID
-// 4. All devices will then share the same data!
-const SHARED_BIN_ID = '6959453bae596e708fc282a4'; // Replace with your actual bin ID for cross-device sync
+// Set this to your actual bin ID from JSONBin.io
+// To get it: Check browser console after first save, or create one at https://jsonbin.io/
+const SHARED_BIN_ID = '6959453bae596e708fc282a4'; // Your shared bin ID for cross-device sync
 
 const API_URL = 'https://api.jsonbin.io/v3';
 
@@ -20,29 +17,27 @@ interface StorageData {
 
 let cachedBinId: string | null = null;
 
-// Initialize - get or create shared bin
+// Initialize - ALWAYS use SHARED_BIN_ID if set
 const getBinId = async (): Promise<string> => {
-  if (cachedBinId) return cachedBinId;
-  
-  // Use shared bin ID if configured (for cross-device sync)
-  if (SHARED_BIN_ID && SHARED_BIN_ID !== '6959453bae596e708fc282a4') {
-    // Verify bin exists by trying to read it
-    try {
-      const response = await fetch(`${API_URL}/b/${SHARED_BIN_ID}/latest`, {
-        headers: { 'X-Master-Key': JSONBIN_API_KEY },
-      });
-      if (response.ok) {
-        cachedBinId = SHARED_BIN_ID;
-        return SHARED_BIN_ID;
-      }
-    } catch (error) {
-      console.warn('Shared bin not accessible, will create new one');
-    }
+  // Use cached bin ID if available
+  if (cachedBinId) {
+    return cachedBinId;
   }
   
-  // If no shared bin or it doesn't exist, create a new one
-  // NOTE: This creates a NEW bin per device - you need to set SHARED_BIN_ID for cross-device sync!
-  console.warn('⚠️ Creating new bin - cross-device sync will NOT work until SHARED_BIN_ID is set!');
+  // CRITICAL: ALWAYS use SHARED_BIN_ID if it's configured
+  // This ensures cross-device sync works - all devices use the same bin
+  // NEVER create new bins when SHARED_BIN_ID is set!
+  if (SHARED_BIN_ID && SHARED_BIN_ID.length > 10) {
+    cachedBinId = SHARED_BIN_ID;
+    console.log('✅ Using FIXED shared bin ID:', SHARED_BIN_ID.substring(0, 12) + '... (cross-device sync enabled)');
+    return SHARED_BIN_ID;
+  }
+  
+  // FALLBACK: Only create new bin if SHARED_BIN_ID is NOT configured
+  // This should NOT happen if SHARED_BIN_ID is set correctly
+  console.error('❌ ERROR: SHARED_BIN_ID not configured! Creating new bin - this will NOT sync across devices!');
+  console.error('❌ Fix: Set SHARED_BIN_ID in storage.ts to enable cross-device sync');
+  
   const response = await fetch(`${API_URL}/b`, {
     method: 'POST',
     headers: {
@@ -58,8 +53,8 @@ const getBinId = async (): Promise<string> => {
   
   const data = await response.json();
   const newBinId = data.metadata?.id || data.id;
-  console.log('📦 Created new bin ID:', newBinId);
-  console.log('⚠️ Copy this ID and set it as SHARED_BIN_ID in storage.ts for cross-device sync!');
+  console.error('📦 Created NEW bin ID:', newBinId);
+  console.error('⚠️ Set this as SHARED_BIN_ID in storage.ts for cross-device sync!');
   cachedBinId = newBinId;
   return newBinId;
 };
@@ -76,15 +71,25 @@ export const loadFromCloud = async (): Promise<StorageData> => {
       },
     });
     
+    // If bin doesn't exist (404), return empty data - this is fine for first use
+    if (response.status === 404) {
+      console.log('📦 Bin does not exist yet, returning empty data');
+      return { results: [], usedCodes: [] };
+    }
+    
     if (!response.ok) {
-      throw new Error('Failed to load from cloud');
+      throw new Error(`Failed to load from cloud: ${response.status}`);
     }
     
     const data = await response.json();
     return data.record || { results: [], usedCodes: [] };
-  } catch (error) {
+  } catch (error: any) {
+    // If it's a 404, return empty data instead of throwing
+    if (error?.message?.includes('404') || error?.message?.includes('not exist')) {
+      return { results: [], usedCodes: [] };
+    }
     console.error('Failed to load from cloud:', error);
-    throw error; // Don't fallback, just throw
+    throw error;
   }
 };
 
@@ -95,6 +100,7 @@ export const saveToCloud = async (results: any[], usedCodes: string[]): Promise<
   
   const data = { results, usedCodes };
   
+  // Try PUT (this works for both creating and updating in JSONBin.io v3)
   const response = await fetch(`${API_URL}/b/${binId}`, {
     method: 'PUT',
     headers: {
@@ -105,8 +111,16 @@ export const saveToCloud = async (results: any[], usedCodes: string[]): Promise<
   });
   
   if (!response.ok) {
-    throw new Error('Failed to save to cloud');
+    const errorText = await response.text().catch(() => 'Unknown error');
+    if (response.status === 404) {
+      // Bin doesn't exist - JSONBin.io v3 requires bin to exist first
+      console.error('❌ Bin does not exist! Create it at https://jsonbin.io/ first, or the bin ID might be incorrect.');
+      throw new Error(`Bin ${binId.substring(0, 8)}... does not exist. Please create it at https://jsonbin.io/ or verify the bin ID is correct.`);
+    }
+    throw new Error(`Failed to save to cloud: ${response.status} - ${errorText}`);
   }
+  
+  console.log('✅ Saved to bin:', binId.substring(0, 8) + '...');
 };
 
 // Check if access code is used (cloud only)
