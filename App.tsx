@@ -331,6 +331,31 @@ const formatTime = (seconds: number) => {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
+// --- Loading Spinner Component ---
+const LoadingSpinner = ({ size = 'md', text }: { size?: 'sm' | 'md' | 'lg', text?: string }) => {
+  const sizeClasses = {
+    sm: 'w-4 h-4 border-2',
+    md: 'w-8 h-8 border-3',
+    lg: 'w-12 h-12 border-4'
+  };
+  
+  return (
+    <div className="flex flex-col items-center justify-center gap-3">
+      <div className={`${sizeClasses[size]} border-blue-600 border-t-transparent rounded-full animate-spin`}></div>
+      {text && <p className="text-sm font-medium text-slate-600">{text}</p>}
+    </div>
+  );
+};
+
+// Full screen loader overlay
+const LoadingOverlay = ({ text = 'Loading...' }: { text?: string }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 backdrop-blur-sm">
+    <div className="text-center">
+      <LoadingSpinner size="lg" text={text} />
+    </div>
+  </div>
+);
+
 // --- Sub-components ---
 
 const WelcomeView = ({ 
@@ -344,7 +369,8 @@ const WelcomeView = ({
   setTrack, 
   handleStartExam, 
   setStep,
-  error
+  error,
+  isLoading
 }: any) => (
   <div className="min-h-screen flex items-center justify-center p-4 md:p-6 lg:p-12">
     <div className="max-w-5xl w-full grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
@@ -417,11 +443,18 @@ const WelcomeView = ({
             </div>
           </div>
           <button 
-            disabled={!studentName || !desiredCourse || !accessCode}
+            disabled={!studentName || !desiredCourse || !accessCode || isLoading}
             onClick={handleStartExam}
-            className="w-full jamb-gradient text-white font-extrabold p-4 md:p-5 rounded-xl md:rounded-2xl shadow-xl shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-1 active:translate-y-0 transition-all disabled:opacity-50 disabled:grayscale disabled:pointer-events-none text-xs md:text-base uppercase tracking-widest"
+            className="w-full jamb-gradient text-white font-extrabold p-4 md:p-5 rounded-xl md:rounded-2xl shadow-xl shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-1 active:translate-y-0 transition-all disabled:opacity-50 disabled:grayscale disabled:pointer-events-none text-xs md:text-base uppercase tracking-widest relative"
           >
-            START EXAM
+            {isLoading ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                VERIFYING...
+              </span>
+            ) : (
+              'START EXAM'
+            )}
           </button>
         </div>
       </div>
@@ -569,38 +602,58 @@ const ExamView = ({
   );
 };
 
-const AdminPanel = ({ results, onLogout }: { results: StudentResult[], onLogout: () => void }) => {
+const AdminPanel = ({ results, onLogout, isLoading }: { results: StudentResult[], onLogout: () => void, isLoading: boolean }) => {
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-10">
       <div className="flex justify-between items-center">
         <h1 className="heading-font text-4xl font-black">RECORDS.</h1>
         <button onClick={onLogout} className="bg-white px-6 py-3 rounded-xl font-black text-xs border border-slate-200 shadow-sm">LOGOUT</button>
       </div>
-      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead className="bg-slate-50 border-b border-slate-100">
-            <tr>
-              <th className="p-8 text-[10px] font-black uppercase tracking-widest">Candidate</th>
-              <th className="p-8 text-[10px] font-black uppercase tracking-widest">Code Used</th>
-              <th className="p-8 text-[10px] font-black uppercase tracking-widest text-center">Score</th>
-              <th className="p-8 text-[10px] font-black uppercase tracking-widest text-right">Date</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {results.map(r => (
-              <tr key={r.id}>
-                <td className="p-8 font-bold">
-                  {r.name}
-                  <br/>
-                  <span className="text-[10px] text-blue-500">#{r.id}</span>
-                </td>
-                <td className="p-8 font-mono text-xs">{r.accessCode}</td>
-                <td className="p-8 text-center font-black">{r.score}/{r.totalPossible}</td>
-                <td className="p-8 text-right text-xs">{new Date(r.timestamp).toLocaleDateString()}</td>
+      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden overflow-x-auto relative min-h-[400px]">
+        {isLoading && results.length === 0 ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <LoadingSpinner size="lg" text="Loading results..." />
+          </div>
+        ) : (
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-slate-50 border-b border-slate-100">
+              <tr>
+                <th className="p-8 text-[10px] font-black uppercase tracking-widest">Candidate</th>
+                <th className="p-8 text-[10px] font-black uppercase tracking-widest">Code Used</th>
+                <th className="p-8 text-[10px] font-black uppercase tracking-widest text-center">Score</th>
+                <th className="p-8 text-[10px] font-black uppercase tracking-widest text-right">Date</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {results.length === 0 && !isLoading ? (
+                <tr>
+                  <td colSpan={4} className="p-16 text-center text-slate-400 font-bold uppercase text-sm">
+                    No results yet
+                  </td>
+                </tr>
+              ) : (
+                results.map(r => (
+                  <tr key={r.id}>
+                    <td className="p-8 font-bold">
+                      {r.name}
+                      <br/>
+                      <span className="text-[10px] text-blue-500">#{r.id}</span>
+                    </td>
+                    <td className="p-8 font-mono text-xs">{r.accessCode}</td>
+                    <td className="p-8 text-center font-black">{r.score}/{r.totalPossible}</td>
+                    <td className="p-8 text-right text-xs">{new Date(r.timestamp).toLocaleDateString()}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        )}
+        {isLoading && results.length > 0 && (
+          <div className="absolute bottom-4 right-4 flex items-center gap-2 text-xs text-slate-500">
+            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <span>Updating...</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -783,6 +836,9 @@ export default function App() {
   const [welcomeError, setWelcomeError] = useState('');
   const [currentResult, setCurrentResult] = useState<StudentResult | null>(null);
   const [adminResults, setAdminResults] = useState<StudentResult[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingAdmin, setIsLoadingAdmin] = useState(true);
 
   // Use a ref to always have access to current state in async closures
   const stateRef = useRef({ answers, studentName, desiredCourse, track, accessCode });
@@ -798,6 +854,7 @@ export default function App() {
   }, [track]);
 
   const handleActualSubmit = useCallback(async () => {
+    setIsSubmitting(true);
     try {
       // Accessing latest state from ref to avoid closure issues
       const { answers: latestAnswers, studentName: name, desiredCourse: course, track: t, accessCode: code } = stateRef.current;
@@ -834,6 +891,8 @@ export default function App() {
     } catch (error) {
       console.error('Error submitting exam:', error);
       alert('There was an error submitting your exam. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   }, []);
 
@@ -884,11 +943,29 @@ export default function App() {
     if (!studentName || !desiredCourse || !accessCode) return;
     if (!ALLOWED_CODES.includes(accessCode)) { setWelcomeError('INVALID ACCESS CODE'); return; }
     
-    // Check if code is already used (cross-device check)
-    const codeUsed = await isAccessCodeUsed(accessCode);
-    if (codeUsed) { setWelcomeError('CODE ALREADY USED'); return; }
+    setIsLoading(true);
+    setWelcomeError('');
     
-    setWelcomeError(''); setStep('exam'); setAnswers({}); setTimeLeft(3600); setCurrentQuestionIndex(0);
+    try {
+      // Check if code is already used (cross-device check)
+      const codeUsed = await isAccessCodeUsed(accessCode);
+      if (codeUsed) { 
+        setWelcomeError('CODE ALREADY USED'); 
+        setIsLoading(false);
+        return; 
+      }
+      
+      setWelcomeError(''); 
+      setStep('exam'); 
+      setAnswers({}); 
+      setTimeLeft(3600); 
+      setCurrentQuestionIndex(0);
+    } catch (error) {
+      console.error('Error checking access code:', error);
+      setWelcomeError('NETWORK ERROR - Please check your connection');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleReturnToDashboard = () => {
@@ -898,8 +975,13 @@ export default function App() {
 
   return (
     <div className="selection:bg-blue-100 selection:text-blue-900">
-      {step === 'welcome' && <WelcomeView studentName={studentName} setStudentName={setStudentName} desiredCourse={desiredCourse} setDesiredCourse={setDesiredCourse} accessCode={accessCode} setAccessCode={setAccessCode} track={track} setTrack={setTrack} handleStartExam={handleStartExam} setStep={setStep} error={welcomeError} />}
-      {step === 'exam' && <ExamView q={activeQuestions[currentQuestionIndex]} activeQuestions={activeQuestions} currentQuestionIndex={currentQuestionIndex} setCurrentQuestionIndex={setCurrentQuestionIndex} timeLeft={timeLeft} studentName={studentName} answers={answers} setAnswers={setAnswers} onFinish={handleActualSubmit} />}
+      {step === 'welcome' && <WelcomeView studentName={studentName} setStudentName={setStudentName} desiredCourse={desiredCourse} setDesiredCourse={setDesiredCourse} accessCode={accessCode} setAccessCode={setAccessCode} track={track} setTrack={setTrack} handleStartExam={handleStartExam} setStep={setStep} error={welcomeError} isLoading={isLoading} />}
+      {step === 'exam' && (
+        <>
+          <ExamView q={activeQuestions[currentQuestionIndex]} activeQuestions={activeQuestions} currentQuestionIndex={currentQuestionIndex} setCurrentQuestionIndex={setCurrentQuestionIndex} timeLeft={timeLeft} studentName={studentName} answers={answers} setAnswers={setAnswers} onFinish={handleActualSubmit} />
+          {isSubmitting && <LoadingOverlay text="Submitting your exam..." />}
+        </>
+      )}
       {step === 'result' && <ResultView currentResult={currentResult} handleReturnToDashboard={handleReturnToDashboard} handlePrint={() => window.print()} />}
       {step === 'admin-login' && (
         <div className="min-h-screen flex items-center justify-center p-6"><div className="max-w-md w-full bg-white p-12 rounded-[3rem] shadow-2xl border border-slate-100 text-center"><h2 className="heading-font text-2xl font-black uppercase">ADMIN LOGIN</h2><input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} className="w-full p-4 mt-6 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-blue-500 text-center text-2xl font-black" placeholder="••••" />{adminError && <p className="text-red-500 text-xs font-black mt-2 uppercase">{adminError}</p>}<button onClick={() => adminPassword === 'niggasake' ? setStep('admin-panel') : setAdminError('DENIED')} className="w-full bg-slate-900 text-white p-5 mt-6 rounded-2xl font-black uppercase tracking-widest">Login</button><button onClick={() => setStep('welcome')} className="mt-4 text-slate-300 font-bold uppercase text-xs">Cancel</button></div></div>
@@ -907,7 +989,8 @@ export default function App() {
       {step === 'admin-panel' && (
         <AdminPanel 
           results={adminResults}
-          onLogout={() => setStep('welcome')} 
+          onLogout={() => setStep('welcome')}
+          isLoading={isLoadingAdmin}
         />
       )}
     </div>
