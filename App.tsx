@@ -2,6 +2,20 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AppStep, CourseTrack, StudentResult, Question } from './types';
 import { QUESTIONS } from './questions';
+import { db } from './firebase';
+import { 
+  collection, 
+  addDoc, 
+  getDocs, 
+  query, 
+  where, 
+  orderBy, 
+  onSnapshot,
+  doc,
+  setDoc,
+  getDoc,
+  Timestamp
+} from 'firebase/firestore';
 
 // --- Screenshot/Recording Prevention ---
 let screenshotPreventionHandlers: {
@@ -320,22 +334,70 @@ const ALLOWED_CODES = [
   'NV-0859-VC', 'NV-8846-KC', 'NV-3450-MO', 'NV-5007-JE',
 ];
 
-// --- Helper Functions ---
-const saveResultToLocalStorage = (result: StudentResult) => {
+// --- Firestore Helper Functions ---
+const saveResultToFirestore = async (result: StudentResult) => {
   try {
-    const existing = JSON.parse(localStorage.getItem('nova_academy_results') || '[]');
-    localStorage.setItem('nova_academy_results', JSON.stringify([...existing, result]));
+    // Save result to Firestore
+    await addDoc(collection(db, 'results'), {
+      ...result,
+      timestamp: Timestamp.fromMillis(result.timestamp)
+    });
+    
+    // Also mark the access code as used
+    await setDoc(doc(db, 'usedCodes', result.accessCode), {
+      code: result.accessCode,
+      usedAt: Timestamp.now(),
+      resultId: result.id
+    });
   } catch (e) {
-    console.error("Failed to save to localStorage", e);
+    console.error("Failed to save to Firestore", e);
+    throw e;
   }
 };
 
-const getResultsFromLocalStorage = (): StudentResult[] => {
+const getResultsFromFirestore = async (): Promise<StudentResult[]> => {
   try {
-    return JSON.parse(localStorage.getItem('nova_academy_results') || '[]');
+    const resultsSnapshot = await getDocs(
+      query(collection(db, 'results'), orderBy('timestamp', 'desc'))
+    );
+    return resultsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        ...data,
+        timestamp: data.timestamp?.toMillis() || Date.now()
+      } as StudentResult;
+    });
   } catch (e) {
+    console.error("Failed to fetch from Firestore", e);
     return [];
   }
+};
+
+const isAccessCodeUsed = async (accessCode: string): Promise<boolean> => {
+  try {
+    const codeDoc = await getDoc(doc(db, 'usedCodes', accessCode));
+    return codeDoc.exists();
+  } catch (e) {
+    console.error("Failed to check access code", e);
+    return false;
+  }
+};
+
+// Real-time listener for results (for admin dashboard)
+const subscribeToResults = (callback: (results: StudentResult[]) => void) => {
+  const q = query(collection(db, 'results'), orderBy('timestamp', 'desc'));
+  return onSnapshot(q, (snapshot) => {
+    const results = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        ...data,
+        timestamp: data.timestamp?.toMillis() || Date.now()
+      } as StudentResult;
+    });
+    callback(results);
+  }, (error) => {
+    console.error("Error listening to results", error);
+  });
 };
 
 const formatTime = (seconds: number) => {
@@ -582,6 +644,43 @@ const ExamView = ({
   );
 };
 
+const AdminPanel = ({ results, onLogout }: { results: StudentResult[], onLogout: () => void }) => {
+  return (
+    <div className="p-8 max-w-7xl mx-auto space-y-10">
+      <div className="flex justify-between items-center">
+        <h1 className="heading-font text-4xl font-black">RECORDS.</h1>
+        <button onClick={onLogout} className="bg-white px-6 py-3 rounded-xl font-black text-xs border border-slate-200 shadow-sm">LOGOUT</button>
+      </div>
+      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead className="bg-slate-50 border-b border-slate-100">
+            <tr>
+              <th className="p-8 text-[10px] font-black uppercase tracking-widest">Candidate</th>
+              <th className="p-8 text-[10px] font-black uppercase tracking-widest">Code Used</th>
+              <th className="p-8 text-[10px] font-black uppercase tracking-widest text-center">Score</th>
+              <th className="p-8 text-[10px] font-black uppercase tracking-widest text-right">Date</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {results.map(r => (
+              <tr key={r.id}>
+                <td className="p-8 font-bold">
+                  {r.name}
+                  <br/>
+                  <span className="text-[10px] text-blue-500">#{r.id}</span>
+                </td>
+                <td className="p-8 font-mono text-xs">{r.accessCode}</td>
+                <td className="p-8 text-center font-black">{r.score}/{r.totalPossible}</td>
+                <td className="p-8 text-right text-xs">{new Date(r.timestamp).toLocaleDateString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 const ResultView = ({ currentResult, handleReturnToDashboard, handlePrint }: any) => {
   if (!currentResult) return null;
   const percentage = Math.round((currentResult.score / currentResult.totalPossible) * 100);
@@ -758,6 +857,7 @@ export default function App() {
   const [adminError, setAdminError] = useState('');
   const [welcomeError, setWelcomeError] = useState('');
   const [currentResult, setCurrentResult] = useState<StudentResult | null>(null);
+  const [adminResults, setAdminResults] = useState<StudentResult[]>([]);
 
   // Use a ref to always have access to current state in async closures
   const stateRef = useRef({ answers, studentName, desiredCourse, track, accessCode });
@@ -772,7 +872,7 @@ export default function App() {
     });
   }, [track]);
 
-  const handleActualSubmit = useCallback(() => {
+  const handleActualSubmit = useCallback(async () => {
     try {
       // Accessing latest state from ref to avoid closure issues
       const { answers: latestAnswers, studentName: name, desiredCourse: course, track: t, accessCode: code } = stateRef.current;
@@ -802,7 +902,7 @@ export default function App() {
         answers: { ...latestAnswers }
       };
 
-      saveResultToLocalStorage(result);
+      await saveResultToFirestore(result);
       setCurrentResult(result);
       setStep('result');
       document.title = `Nova_Mock_Result_${name.replace(/\s+/g, '_')}`;
@@ -838,11 +938,24 @@ export default function App() {
     };
   }, [step]);
 
-  const handleStartExam = () => {
+  // Real-time listener for admin panel results
+  useEffect(() => {
+    if (step === 'admin-panel') {
+      const unsubscribe = subscribeToResults((results) => {
+        setAdminResults(results);
+      });
+      return () => unsubscribe();
+    }
+  }, [step]);
+
+  const handleStartExam = async () => {
     if (!studentName || !desiredCourse || !accessCode) return;
     if (!ALLOWED_CODES.includes(accessCode)) { setWelcomeError('INVALID ACCESS CODE'); return; }
-    const results = getResultsFromLocalStorage();
-    if (results.some(r => r.accessCode === accessCode)) { setWelcomeError('CODE ALREADY USED'); return; }
+    
+    // Check if code is already used (cross-device check)
+    const codeUsed = await isAccessCodeUsed(accessCode);
+    if (codeUsed) { setWelcomeError('CODE ALREADY USED'); return; }
+    
     setWelcomeError(''); setStep('exam'); setAnswers({}); setTimeLeft(3600); setCurrentQuestionIndex(0);
   };
 
@@ -860,10 +973,10 @@ export default function App() {
         <div className="min-h-screen flex items-center justify-center p-6"><div className="max-w-md w-full bg-white p-12 rounded-[3rem] shadow-2xl border border-slate-100 text-center"><h2 className="heading-font text-2xl font-black uppercase">ADMIN LOGIN</h2><input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} className="w-full p-4 mt-6 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-blue-500 text-center text-2xl font-black" placeholder="••••" />{adminError && <p className="text-red-500 text-xs font-black mt-2 uppercase">{adminError}</p>}<button onClick={() => adminPassword === 'niggasake' ? setStep('admin-panel') : setAdminError('DENIED')} className="w-full bg-slate-900 text-white p-5 mt-6 rounded-2xl font-black uppercase tracking-widest">Login</button><button onClick={() => setStep('welcome')} className="mt-4 text-slate-300 font-bold uppercase text-xs">Cancel</button></div></div>
       )}
       {step === 'admin-panel' && (
-        <div className="p-8 max-w-7xl mx-auto space-y-10">
-          <div className="flex justify-between items-center"><h1 className="heading-font text-4xl font-black">RECORDS.</h1><button onClick={() => setStep('welcome')} className="bg-white px-6 py-3 rounded-xl font-black text-xs border border-slate-200 shadow-sm">LOGOUT</button></div>
-          <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden overflow-x-auto"><table className="w-full text-left border-collapse"><thead className="bg-slate-50 border-b border-slate-100"><tr><th className="p-8 text-[10px] font-black uppercase tracking-widest">Candidate</th><th className="p-8 text-[10px] font-black uppercase tracking-widest">Code Used</th><th className="p-8 text-[10px] font-black uppercase tracking-widest text-center">Score</th><th className="p-8 text-[10px] font-black uppercase tracking-widest text-right">Date</th></tr></thead><tbody className="divide-y divide-slate-100">{getResultsFromLocalStorage().map(r => (<tr key={r.id}><td className="p-8 font-bold">{r.name}<br/><span className="text-[10px] text-blue-500">#{r.id}</span></td><td className="p-8 font-mono text-xs">{r.accessCode}</td><td className="p-8 text-center font-black">{r.score}/{r.totalPossible}</td><td className="p-8 text-right text-xs">{new Date(r.timestamp).toLocaleDateString()}</td></tr>))}</tbody></table></div>
-        </div>
+        <AdminPanel 
+          results={adminResults}
+          onLogout={() => setStep('welcome')} 
+        />
       )}
     </div>
   );
