@@ -909,7 +909,7 @@ export default function App() {
   };
 
   return (
-    <div className="selection:bg-blue-100 selection:text-blue-900">
+    <div className="selection:bg-blue-100 selection:text-blue-900 w-full min-h-screen">
       {step === 'welcome' && <WelcomeView studentName={studentName} setStudentName={setStudentName} desiredCourse={desiredCourse} setDesiredCourse={setDesiredCourse} accessCode={accessCode} setAccessCode={setAccessCode} track={track} setTrack={setTrack} handleStartExam={handleStartExam} setStep={setStep} error={welcomeError} isLoading={isLoading} showDemo={showDemo} setShowDemo={setShowDemo} />}
       {step === 'exam' && (
         <>
