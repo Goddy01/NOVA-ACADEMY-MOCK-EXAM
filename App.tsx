@@ -11,8 +11,11 @@ let screenshotPreventionHandlers: {
   dragstart?: (e: DragEvent) => boolean;
   copy?: (e: ClipboardEvent) => boolean;
   cut?: (e: ClipboardEvent) => boolean;
+  mouseup?: () => void;
+  mousedown?: () => void;
 } = {};
 let devtoolsInterval: any = null;
+let clearSelectionInterval: any = null;
 let preventionStyle: HTMLStyleElement | null = null;
 
 const preventScreenshot = () => {
@@ -49,30 +52,102 @@ const preventScreenshot = () => {
       e.preventDefault();
       return false;
     }
+    // Ctrl+C (Copy) - Block copying exam questions
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+      e.preventDefault();
+      e.stopPropagation();
+      // Clear clipboard
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText('').catch(() => {});
+      }
+      return false;
+    }
+    // Ctrl+A (Select All) - Prevent selecting all text
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+      e.preventDefault();
+      return false;
+    }
+    // Ctrl+X (Cut) - Block cutting text
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'x' || e.key === 'X')) {
+      e.preventDefault();
+      return false;
+    }
+    // Ctrl+V (Paste) - Can be allowed or blocked depending on requirement
+    // We'll allow it but you can uncomment to block:
+    // if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
+    //   e.preventDefault();
+    //   return false;
+    // }
     return true;
   };
 
-  // Prevent text selection
+  // Prevent text selection - Especially for exam question text
   screenshotPreventionHandlers.selectstart = (e: Event) => {
+    // Check if the selection is starting on exam content (not input fields)
+    const target = e.target as HTMLElement;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      // Allow selection in input fields
+      return true;
+    }
+    // Block selection everywhere else (especially question text)
     e.preventDefault();
+    e.stopPropagation();
     return false;
   };
 
-  // Prevent drag
+  // Prevent drag and mouse selection
   screenshotPreventionHandlers.dragstart = (e: DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     return false;
   };
 
-  // Disable copy/paste
+  // Prevent mouse selection via dragging
+  const handleMouseMove = (e: MouseEvent) => {
+    // Clear selection on mouse move if trying to select
+    if (e.buttons === 1) { // Left mouse button is pressed
+      const selection = window.getSelection();
+      if (selection && selection.toString().length > 0) {
+        selection.removeAllRanges();
+      }
+    }
+  };
+  
+  // Add mouse move handler to prevent selection while dragging
+  document.addEventListener('mousemove', handleMouseMove, { passive: false });
+  
+  // Store handler for cleanup
+  (screenshotPreventionHandlers as any).mousemove = handleMouseMove;
+
+  // Disable copy/paste - Aggressively prevent copying exam questions
   screenshotPreventionHandlers.copy = (e: ClipboardEvent) => {
-    e.clipboardData?.setData('text/plain', '');
+    // Clear clipboard data completely
+    if (e.clipboardData) {
+      e.clipboardData.setData('text/plain', '');
+      e.clipboardData.setData('text/html', '');
+      e.clipboardData.clearData();
+    }
     e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    
+    // Also try to clear via clipboard API
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText('').catch(() => {});
+    }
     return false;
   };
 
   screenshotPreventionHandlers.cut = (e: ClipboardEvent) => {
+    // Prevent cutting text
+    if (e.clipboardData) {
+      e.clipboardData.setData('text/plain', '');
+      e.clipboardData.setData('text/html', '');
+      e.clipboardData.clearData();
+    }
     e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
     return false;
   };
 
@@ -120,7 +195,7 @@ const preventScreenshot = () => {
     };
   }
 
-  // CSS to prevent selection
+  // CSS to prevent selection - Enhanced protection
   if (!preventionStyle) {
     preventionStyle = document.createElement('style');
     preventionStyle.id = 'exam-protection-style';
@@ -132,16 +207,60 @@ const preventScreenshot = () => {
         user-select: none !important;
         -webkit-touch-callout: none !important;
         -webkit-tap-highlight-color: transparent !important;
+        -khtml-user-select: none !important;
       }
-      input, textarea {
+      input, textarea, [contenteditable="true"] {
         -webkit-user-select: text !important;
         -moz-user-select: text !important;
         -ms-user-select: text !important;
         user-select: text !important;
       }
+      /* Prevent text selection on question content specifically */
+      h2, p, span, div:not(input):not(textarea) {
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
+        user-select: none !important;
+        pointer-events: auto !important;
+      }
+      /* Disable selection highlighting */
+      ::selection {
+        background: transparent !important;
+        color: inherit !important;
+      }
+      ::-moz-selection {
+        background: transparent !important;
+        color: inherit !important;
+      }
     `;
     document.head.appendChild(preventionStyle);
   }
+  
+  // Additional protection: Clear any existing selection
+  const clearSelection = () => {
+    if (window.getSelection) {
+      window.getSelection()?.removeAllRanges();
+    }
+    if ((document as any).selection) {
+      (document as any).selection.empty();
+    }
+  };
+  
+  // Store handlers for cleanup
+  screenshotPreventionHandlers.mouseup = clearSelection;
+  screenshotPreventionHandlers.mousedown = () => {
+    clearSelection();
+    // Also prevent selection on mousedown
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+    }
+  };
+  
+  // Clear selection periodically and on mouse events
+  clearSelectionInterval = setInterval(clearSelection, 100);
+  document.addEventListener('mouseup', clearSelection);
+  document.addEventListener('mousedown', clearSelection);
 };
 
 const removeScreenshotPrevention = () => {
@@ -164,6 +283,15 @@ const removeScreenshotPrevention = () => {
   if (screenshotPreventionHandlers.cut) {
     document.removeEventListener('cut', screenshotPreventionHandlers.cut);
   }
+  if (screenshotPreventionHandlers.mouseup) {
+    document.removeEventListener('mouseup', screenshotPreventionHandlers.mouseup);
+  }
+  if (screenshotPreventionHandlers.mousedown) {
+    document.removeEventListener('mousedown', screenshotPreventionHandlers.mousedown);
+  }
+  if ((screenshotPreventionHandlers as any).mousemove) {
+    document.removeEventListener('mousemove', (screenshotPreventionHandlers as any).mousemove);
+  }
   
   screenshotPreventionHandlers = {};
   
@@ -171,6 +299,10 @@ const removeScreenshotPrevention = () => {
   if (devtoolsInterval) {
     clearInterval(devtoolsInterval);
     devtoolsInterval = null;
+  }
+  if (clearSelectionInterval) {
+    clearInterval(clearSelectionInterval);
+    clearSelectionInterval = null;
   }
   
   // Remove style
