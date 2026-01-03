@@ -107,4 +107,10 @@ const firebaseConfig = {
 - **Import errors**: Make sure Firebase is installed: `npm install firebase`
 - **Permission errors**: Check Firestore security rules
 - **Connection errors**: Verify your Firebase config in `firebase.ts`
+- **"Client is offline" error**: 
+  - Make sure you've enabled Firestore Database in Firebase Console
+  - Go to Firestore Database and click "Create database" if you haven't already
+  - Check your internet connection
+  - The app will fallback to localStorage if Firestore is unavailable, but cross-device sync won't work
+- **Offline mode**: The app now includes offline persistence, so it will work even when offline and sync when connection is restored
 

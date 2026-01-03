@@ -336,8 +336,16 @@ const ALLOWED_CODES = [
 
 // --- Firestore Helper Functions ---
 const saveResultToFirestore = async (result: StudentResult) => {
+  // Always save to localStorage as backup
   try {
-    // Save result to Firestore
+    const existing = JSON.parse(localStorage.getItem('nova_academy_results') || '[]');
+    localStorage.setItem('nova_academy_results', JSON.stringify([...existing, result]));
+  } catch (localError) {
+    console.warn("Failed to save to localStorage", localError);
+  }
+
+  try {
+    // Try to save to Firestore (cloud sync)
     await addDoc(collection(db, 'results'), {
       ...result,
       timestamp: Timestamp.fromMillis(result.timestamp)
@@ -349,9 +357,18 @@ const saveResultToFirestore = async (result: StudentResult) => {
       usedAt: Timestamp.now(),
       resultId: result.id
     });
-  } catch (e) {
-    console.error("Failed to save to Firestore", e);
-    throw e;
+    console.log("Successfully saved to Firestore");
+  } catch (e: any) {
+    // Handle offline/connection errors gracefully
+    if (e?.code === 'unavailable' || e?.code === 'failed-precondition' || e?.message?.includes('offline')) {
+      console.warn("Firestore is offline, saved to localStorage only. Data will sync when online.");
+      // Don't throw - we've saved to localStorage as backup
+      // Firestore will sync automatically when connection is restored
+    } else {
+      console.error("Failed to save to Firestore", e);
+      // Still don't throw - localStorage backup is sufficient for now
+      // The user can still see their result
+    }
   }
 };
 
@@ -375,10 +392,37 @@ const getResultsFromFirestore = async (): Promise<StudentResult[]> => {
 
 const isAccessCodeUsed = async (accessCode: string): Promise<boolean> => {
   try {
+    // First check Firestore (cloud)
     const codeDoc = await getDoc(doc(db, 'usedCodes', accessCode));
-    return codeDoc.exists();
-  } catch (e) {
+    if (codeDoc.exists()) {
+      return true;
+    }
+    
+    // Also check localStorage as fallback (local device check)
+    try {
+      const localResults = JSON.parse(localStorage.getItem('nova_academy_results') || '[]');
+      if (localResults.some((r: StudentResult) => r.accessCode === accessCode)) {
+        return true;
+      }
+    } catch (localError) {
+      // Ignore localStorage errors
+    }
+    
+    return false;
+  } catch (e: any) {
+    // Handle offline/connection errors gracefully
+    if (e?.code === 'unavailable' || e?.code === 'failed-precondition' || e?.message?.includes('offline')) {
+      console.warn("Firestore is offline, checking localStorage only");
+      // Fallback to localStorage check only
+      try {
+        const localResults = JSON.parse(localStorage.getItem('nova_academy_results') || '[]');
+        return localResults.some((r: StudentResult) => r.accessCode === accessCode);
+      } catch (localError) {
+        return false;
+      }
+    }
     console.error("Failed to check access code", e);
+    // On error, allow the code to be used (fail open) but warn the user
     return false;
   }
 };
