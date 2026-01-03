@@ -2,20 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AppStep, CourseTrack, StudentResult, Question } from './types';
 import { QUESTIONS } from './questions';
-import { db } from './firebase';
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
-  onSnapshot,
-  doc,
-  setDoc,
-  getDoc,
-  Timestamp
-} from 'firebase/firestore';
+import { saveResult, isAccessCodeUsed, getAllResults } from './storage';
 
 // --- Screenshot/Recording Prevention ---
 let screenshotPreventionHandlers: {
@@ -334,115 +321,8 @@ const ALLOWED_CODES = [
   'NV-0859-VC', 'NV-8846-KC', 'NV-3450-MO', 'NV-5007-JE',
 ];
 
-// --- Firestore Helper Functions ---
-const saveResultToFirestore = async (result: StudentResult) => {
-  // Always save to localStorage as backup
-  try {
-    const existing = JSON.parse(localStorage.getItem('nova_academy_results') || '[]');
-    localStorage.setItem('nova_academy_results', JSON.stringify([...existing, result]));
-  } catch (localError) {
-    console.warn("Failed to save to localStorage", localError);
-  }
-
-  try {
-    // Try to save to Firestore (cloud sync)
-    await addDoc(collection(db, 'results'), {
-      ...result,
-      timestamp: Timestamp.fromMillis(result.timestamp)
-    });
-    
-    // Also mark the access code as used
-    await setDoc(doc(db, 'usedCodes', result.accessCode), {
-      code: result.accessCode,
-      usedAt: Timestamp.now(),
-      resultId: result.id
-    });
-    console.log("Successfully saved to Firestore");
-  } catch (e: any) {
-    // Handle offline/connection errors gracefully
-    if (e?.code === 'unavailable' || e?.code === 'failed-precondition' || e?.message?.includes('offline')) {
-      console.warn("Firestore is offline, saved to localStorage only. Data will sync when online.");
-      // Don't throw - we've saved to localStorage as backup
-      // Firestore will sync automatically when connection is restored
-    } else {
-      console.error("Failed to save to Firestore", e);
-      // Still don't throw - localStorage backup is sufficient for now
-      // The user can still see their result
-    }
-  }
-};
-
-const getResultsFromFirestore = async (): Promise<StudentResult[]> => {
-  try {
-    const resultsSnapshot = await getDocs(
-      query(collection(db, 'results'), orderBy('timestamp', 'desc'))
-    );
-    return resultsSnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        ...data,
-        timestamp: data.timestamp?.toMillis() || Date.now()
-      } as StudentResult;
-    });
-  } catch (e) {
-    console.error("Failed to fetch from Firestore", e);
-    return [];
-  }
-};
-
-const isAccessCodeUsed = async (accessCode: string): Promise<boolean> => {
-  try {
-    // First check Firestore (cloud)
-    const codeDoc = await getDoc(doc(db, 'usedCodes', accessCode));
-    if (codeDoc.exists()) {
-      return true;
-    }
-    
-    // Also check localStorage as fallback (local device check)
-    try {
-      const localResults = JSON.parse(localStorage.getItem('nova_academy_results') || '[]');
-      if (localResults.some((r: StudentResult) => r.accessCode === accessCode)) {
-        return true;
-      }
-    } catch (localError) {
-      // Ignore localStorage errors
-    }
-    
-    return false;
-  } catch (e: any) {
-    // Handle offline/connection errors gracefully
-    if (e?.code === 'unavailable' || e?.code === 'failed-precondition' || e?.message?.includes('offline')) {
-      console.warn("Firestore is offline, checking localStorage only");
-      // Fallback to localStorage check only
-      try {
-        const localResults = JSON.parse(localStorage.getItem('nova_academy_results') || '[]');
-        return localResults.some((r: StudentResult) => r.accessCode === accessCode);
-      } catch (localError) {
-        return false;
-      }
-    }
-    console.error("Failed to check access code", e);
-    // On error, allow the code to be used (fail open) but warn the user
-    return false;
-  }
-};
-
-// Real-time listener for results (for admin dashboard)
-const subscribeToResults = (callback: (results: StudentResult[]) => void) => {
-  const q = query(collection(db, 'results'), orderBy('timestamp', 'desc'));
-  return onSnapshot(q, (snapshot) => {
-    const results = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        ...data,
-        timestamp: data.timestamp?.toMillis() || Date.now()
-      } as StudentResult;
-    });
-    callback(results);
-  }, (error) => {
-    console.error("Error listening to results", error);
-  });
-};
+// --- Cloud Storage Helper Functions (JSONBin.io) ---
+// All functions are imported from storage.ts
 
 const formatTime = (seconds: number) => {
   const mins = Math.floor(seconds / 60);
@@ -946,7 +826,7 @@ export default function App() {
         answers: { ...latestAnswers }
       };
 
-      await saveResultToFirestore(result);
+      await saveResult(result);
       setCurrentResult(result);
       setStep('result');
       document.title = `Nova_Mock_Result_${name.replace(/\s+/g, '_')}`;
@@ -982,13 +862,20 @@ export default function App() {
     };
   }, [step]);
 
-  // Real-time listener for admin panel results
+  // Poll for admin panel results (updates every 2 seconds)
   useEffect(() => {
     if (step === 'admin-panel') {
-      const unsubscribe = subscribeToResults((results) => {
-        setAdminResults(results);
-      });
-      return () => unsubscribe();
+      const loadResults = async () => {
+        const results = await getAllResults();
+        setAdminResults(results.sort((a, b) => b.timestamp - a.timestamp));
+      };
+      
+      // Load immediately
+      loadResults();
+      
+      // Poll every 2 seconds
+      const interval = setInterval(loadResults, 2000);
+      return () => clearInterval(interval);
     }
   }, [step]);
 
