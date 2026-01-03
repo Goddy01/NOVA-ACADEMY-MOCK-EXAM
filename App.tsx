@@ -173,19 +173,13 @@ const DemoGuide = ({ onClose }: { onClose: () => void }) => {
 
 // --- Countdown Timer Component ---
 const CountdownTimer = () => {
-  const [timeLeft, setTimeLeft] = useState<{ hours: number; minutes: number; seconds: number; expired: boolean } | null>(null);
+  const [timeLeft, setTimeLeft] = useState<{ days?: number; hours: number; minutes: number; seconds: number; expired: boolean } | null>(null);
 
   useEffect(() => {
     const calculateTimeLeft = () => {
       const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const deadline = new Date(today);
-      deadline.setHours(21, 0, 0, 0); // 9:00 PM
-
-      // If it's already past 9 PM today, set deadline to 9 PM tomorrow
-      if (now >= deadline) {
-        deadline.setDate(deadline.getDate() + 1);
-      }
+      // Set deadline to Saturday, January 3, 2026 at 9:00 PM
+      const deadline = new Date(2026, 0, 3, 21, 0, 0, 0); // Month is 0-indexed (0 = January)
 
       const difference = deadline.getTime() - now.getTime();
 
@@ -193,11 +187,13 @@ const CountdownTimer = () => {
         return { hours: 0, minutes: 0, seconds: 0, expired: true };
       }
 
-      const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
+      const totalHours = Math.floor(difference / (1000 * 60 * 60));
+      const days = Math.floor(totalHours / 24);
+      const hours = totalHours % 24;
       const minutes = Math.floor((difference / 1000 / 60) % 60);
       const seconds = Math.floor((difference / 1000) % 60);
 
-      return { hours, minutes, seconds, expired: false };
+      return { days, hours, minutes, seconds, expired: false };
     };
 
     // Calculate immediately
@@ -235,9 +231,22 @@ const CountdownTimer = () => {
         <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <p className="text-blue-600 font-black text-xs md:text-sm uppercase tracking-wider">Registration Closes At 9:00 PM</p>
+        <p className="text-blue-600 font-black text-xs md:text-sm uppercase tracking-wider">Registration Closes Saturday, Jan 3, 2026 at 9:00 PM</p>
       </div>
-      <div className="flex items-center justify-center gap-2 md:gap-4">
+      <div className="flex items-center justify-center gap-2 md:gap-4 flex-wrap">
+        {timeLeft.days !== undefined && timeLeft.days > 0 && (
+          <>
+            <div className="flex flex-col items-center">
+              <div className="bg-white rounded-lg px-3 py-2 md:px-4 md:py-3 shadow-md border-2 border-blue-100 min-w-[60px] md:min-w-[80px]">
+                <span className="text-2xl md:text-3xl font-black text-blue-600 tabular-nums leading-none">
+                  {timeLeft.days.toString().padStart(2, '0')}
+                </span>
+              </div>
+              <span className="text-[8px] md:text-xs font-bold text-blue-500 uppercase tracking-widest mt-1">Days</span>
+            </div>
+            <span className="text-2xl md:text-4xl font-black text-blue-600">:</span>
+          </>
+        )}
         <div className="flex flex-col items-center">
           <div className="bg-white rounded-lg px-3 py-2 md:px-4 md:py-3 shadow-md border-2 border-blue-100 min-w-[60px] md:min-w-[80px]">
             <span className="text-2xl md:text-3xl font-black text-blue-600 tabular-nums leading-none">
@@ -901,15 +910,14 @@ export default function App() {
   const [showDemo, setShowDemo] = useState(false);
   const [isExamClosed, setIsExamClosed] = useState(false);
 
-  // Check if exam is closed (past 9 PM)
+  // Check if exam is closed (past 9 PM on Saturday, January 3, 2026)
   useEffect(() => {
     const checkExamDeadline = () => {
       const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const deadline = new Date(today);
-      deadline.setHours(21, 0, 0, 0); // 9:00 PM
+      // Set deadline to Saturday, January 3, 2026 at 9:00 PM
+      const deadline = new Date(2026, 0, 3, 21, 0, 0, 0); // Month is 0-indexed (0 = January)
       
-      // If it's already past 9 PM today, exam is closed
+      // If current time is past the deadline, exam is closed
       setIsExamClosed(now >= deadline);
     };
 
