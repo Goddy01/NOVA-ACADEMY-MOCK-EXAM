@@ -171,6 +171,105 @@ const DemoGuide = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
+// --- Countdown Timer Component ---
+const CountdownTimer = () => {
+  const [timeLeft, setTimeLeft] = useState<{ hours: number; minutes: number; seconds: number; expired: boolean } | null>(null);
+
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const deadline = new Date(today);
+      deadline.setHours(21, 0, 0, 0); // 9:00 PM
+
+      // If it's already past 9 PM today, set deadline to 9 PM tomorrow
+      if (now >= deadline) {
+        deadline.setDate(deadline.getDate() + 1);
+      }
+
+      const difference = deadline.getTime() - now.getTime();
+
+      if (difference <= 0) {
+        return { hours: 0, minutes: 0, seconds: 0, expired: true };
+      }
+
+      const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((difference / 1000 / 60) % 60);
+      const seconds = Math.floor((difference / 1000) % 60);
+
+      return { hours, minutes, seconds, expired: false };
+    };
+
+    // Calculate immediately
+    setTimeLeft(calculateTimeLeft());
+
+    // Update every second
+    const interval = setInterval(() => {
+      setTimeLeft(calculateTimeLeft());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!timeLeft) {
+    return null;
+  }
+
+  if (timeLeft.expired) {
+    return (
+      <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 md:p-5 text-center">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-red-600 font-black text-sm md:text-base uppercase tracking-wider">Exam Registration Closed</p>
+        </div>
+        <p className="text-red-500 text-xs md:text-sm font-bold">The deadline to take the mock exam has passed.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-4 md:p-6 text-center shadow-lg">
+      <div className="flex items-center justify-center gap-2 mb-3">
+        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p className="text-blue-600 font-black text-xs md:text-sm uppercase tracking-wider">Registration Closes At 9:00 PM</p>
+      </div>
+      <div className="flex items-center justify-center gap-2 md:gap-4">
+        <div className="flex flex-col items-center">
+          <div className="bg-white rounded-lg px-3 py-2 md:px-4 md:py-3 shadow-md border-2 border-blue-100 min-w-[60px] md:min-w-[80px]">
+            <span className="text-2xl md:text-3xl font-black text-blue-600 tabular-nums leading-none">
+              {timeLeft.hours.toString().padStart(2, '0')}
+            </span>
+          </div>
+          <span className="text-[8px] md:text-xs font-bold text-blue-500 uppercase tracking-widest mt-1">Hours</span>
+        </div>
+        <span className="text-2xl md:text-4xl font-black text-blue-600">:</span>
+        <div className="flex flex-col items-center">
+          <div className="bg-white rounded-lg px-3 py-2 md:px-4 md:py-3 shadow-md border-2 border-blue-100 min-w-[60px] md:min-w-[80px]">
+            <span className="text-2xl md:text-3xl font-black text-blue-600 tabular-nums leading-none">
+              {timeLeft.minutes.toString().padStart(2, '0')}
+            </span>
+          </div>
+          <span className="text-[8px] md:text-xs font-bold text-blue-500 uppercase tracking-widest mt-1">Minutes</span>
+        </div>
+        <span className="text-2xl md:text-4xl font-black text-blue-600">:</span>
+        <div className="flex flex-col items-center">
+          <div className="bg-white rounded-lg px-3 py-2 md:px-4 md:py-3 shadow-md border-2 border-blue-100 min-w-[60px] md:min-w-[80px]">
+            <span className="text-2xl md:text-3xl font-black text-blue-600 tabular-nums leading-none">
+              {timeLeft.seconds.toString().padStart(2, '0')}
+            </span>
+          </div>
+          <span className="text-[8px] md:text-xs font-bold text-blue-500 uppercase tracking-widest mt-1">Seconds</span>
+        </div>
+      </div>
+      <p className="text-xs text-blue-500 font-bold mt-3">Time remaining to start the exam</p>
+    </div>
+  );
+};
+
 // --- Sub-components ---
 
 const WelcomeView = ({ 
@@ -187,7 +286,8 @@ const WelcomeView = ({
   error,
   isLoading,
   showDemo,
-  setShowDemo
+  setShowDemo,
+  isExamClosed
 }: any) => (
   <div className="min-h-screen flex items-center justify-center p-4 md:p-6 lg:p-12">
     <div className="max-w-5xl w-full grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
@@ -206,6 +306,9 @@ const WelcomeView = ({
           Official JAMB UTME Simulation Platform. 
           Enter your registered details and one-time access code to begin.
         </p>
+        
+        {/* Countdown Timer */}
+        <CountdownTimer />
         
         {/* Demo Button */}
         <button
@@ -271,7 +374,7 @@ const WelcomeView = ({
             </div>
           </div>
           <button 
-            disabled={!studentName || !desiredCourse || !accessCode || isLoading}
+            disabled={!studentName || !desiredCourse || !accessCode || isLoading || isExamClosed}
             onClick={handleStartExam}
             className="w-full jamb-gradient text-white font-extrabold p-4 md:p-5 rounded-xl md:rounded-2xl shadow-xl shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-1 active:translate-y-0 transition-all disabled:opacity-50 disabled:grayscale disabled:pointer-events-none text-xs md:text-base uppercase tracking-widest relative"
           >
@@ -280,10 +383,17 @@ const WelcomeView = ({
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 VERIFYING...
               </span>
+            ) : isExamClosed ? (
+              'EXAM REGISTRATION CLOSED'
             ) : (
               'START EXAM'
             )}
           </button>
+          {isExamClosed && (
+            <p className="text-[10px] font-black text-red-500 uppercase tracking-widest text-center mt-2">
+              Registration deadline has passed. Exam is now closed.
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -789,6 +899,24 @@ export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingAdmin, setIsLoadingAdmin] = useState(true);
   const [showDemo, setShowDemo] = useState(false);
+  const [isExamClosed, setIsExamClosed] = useState(false);
+
+  // Check if exam is closed (past 9 PM)
+  useEffect(() => {
+    const checkExamDeadline = () => {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const deadline = new Date(today);
+      deadline.setHours(21, 0, 0, 0); // 9:00 PM
+      
+      // If it's already past 9 PM today, exam is closed
+      setIsExamClosed(now >= deadline);
+    };
+
+    checkExamDeadline();
+    const interval = setInterval(checkExamDeadline, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Use a ref to always have access to current state in async closures
   const stateRef = useRef({ answers, studentName, desiredCourse, track, accessCode });
@@ -876,6 +1004,7 @@ export default function App() {
 
   const handleStartExam = async () => {
     if (!studentName || !desiredCourse || !accessCode) return;
+    if (isExamClosed) { setWelcomeError('EXAM REGISTRATION CLOSED'); return; }
     if (!ALLOWED_CODES.includes(accessCode)) { setWelcomeError('INVALID ACCESS CODE'); return; }
     
     setIsLoading(true);
@@ -910,7 +1039,7 @@ export default function App() {
 
   return (
     <div className="selection:bg-blue-100 selection:text-blue-900 w-full min-h-screen">
-      {step === 'welcome' && <WelcomeView studentName={studentName} setStudentName={setStudentName} desiredCourse={desiredCourse} setDesiredCourse={setDesiredCourse} accessCode={accessCode} setAccessCode={setAccessCode} track={track} setTrack={setTrack} handleStartExam={handleStartExam} setStep={setStep} error={welcomeError} isLoading={isLoading} showDemo={showDemo} setShowDemo={setShowDemo} />}
+      {step === 'welcome' && <WelcomeView studentName={studentName} setStudentName={setStudentName} desiredCourse={desiredCourse} setDesiredCourse={setDesiredCourse} accessCode={accessCode} setAccessCode={setAccessCode} track={track} setTrack={setTrack} handleStartExam={handleStartExam} setStep={setStep} error={welcomeError} isLoading={isLoading} showDemo={showDemo} setShowDemo={setShowDemo} isExamClosed={isExamClosed} />}
       {step === 'exam' && (
         <>
           <ExamView q={activeQuestions[currentQuestionIndex]} activeQuestions={activeQuestions} currentQuestionIndex={currentQuestionIndex} setCurrentQuestionIndex={setCurrentQuestionIndex} timeLeft={timeLeft} studentName={studentName} answers={answers} setAnswers={setAnswers} onFinish={handleActualSubmit} />
