@@ -356,6 +356,130 @@ const LoadingOverlay = ({ text = 'Loading...' }: { text?: string }) => (
   </div>
 );
 
+// --- Demo/Tutorial Component ---
+const DemoGuide = ({ onClose }: { onClose: () => void }) => {
+  const [currentStep, setCurrentStep] = useState(0);
+  
+  const steps = [
+    {
+      title: "Welcome to Nova Academy Mock Exam!",
+      content: "This is a complete JAMB UTME simulation. Follow this quick guide to understand how to navigate.",
+      icon: "🎓"
+    },
+    {
+      title: "Step 1: Fill Your Details",
+      content: "Enter your full name, course of study, and your unique access code. The access code can only be used once.",
+      icon: "✍️"
+    },
+    {
+      title: "Step 2: Select Your Track",
+      content: "Choose Biological or Engineering track. This determines which subject-specific questions you'll answer.",
+      icon: "🔬"
+    },
+    {
+      title: "Step 3: Start the Exam",
+      content: "Click 'START EXAM' button. You'll have 60 minutes (1 hour) to complete all questions.",
+      icon: "▶️"
+    },
+    {
+      title: "During the Exam",
+      content: "• Click on any option (A, B, C, D) to select your answer\n• Use 'Previous' and 'Next' buttons to navigate\n• Click question numbers to jump to specific questions\n• Watch the timer - exam auto-submits when time ends\n• Click 'Submit Exam' when you're done",
+      icon: "📝"
+    },
+    {
+      title: "View Your Results",
+      content: "After submitting, you'll see your score and a detailed breakdown showing which answers were correct, wrong, or unanswered.",
+      icon: "📊"
+    },
+    {
+      title: "Important Notes",
+      content: "• Each access code can only be used ONCE\n• You cannot take screenshots during the exam\n• The timer cannot be paused\n• Make sure you have a stable internet connection",
+      icon: "⚠️"
+    }
+  ];
+  
+  const isLast = currentStep === steps.length - 1;
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white relative overflow-hidden">
+          <div className="absolute inset-0 opacity-10 font-black text-8xl -bottom-10 -right-10 pointer-events-none">NOVA</div>
+          <div className="relative z-10 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="text-4xl">{steps[currentStep].icon}</div>
+              <div>
+                <h3 className="heading-font text-2xl font-black">{steps[currentStep].title}</h3>
+                <p className="text-blue-100 text-xs font-bold uppercase tracking-widest mt-1">
+                  Step {currentStep + 1} of {steps.length}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/20 rounded-full transition-all"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        {/* Content */}
+        <div className="p-8 flex-1 overflow-y-auto">
+          <div className="prose prose-sm max-w-none">
+            <p className="text-slate-700 leading-relaxed whitespace-pre-line text-base">
+              {steps[currentStep].content}
+            </p>
+          </div>
+          
+          {/* Progress dots */}
+          <div className="flex gap-2 justify-center mt-8">
+            {steps.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentStep(index)}
+                className={`w-2 h-2 rounded-full transition-all ${
+                  index === currentStep ? 'bg-blue-600 w-8' : 'bg-slate-300 hover:bg-slate-400'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+        
+        {/* Footer */}
+        <div className="border-t border-slate-200 p-6 flex justify-between items-center">
+          <button
+            onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+            disabled={currentStep === 0}
+            className="px-6 py-3 rounded-xl font-bold text-sm border-2 border-slate-200 text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:border-slate-300 transition-all"
+          >
+            Previous
+          </button>
+          
+          {isLast ? (
+            <button
+              onClick={onClose}
+              className="px-8 py-3 rounded-xl font-bold text-sm bg-blue-600 text-white hover:bg-blue-700 transition-all"
+            >
+              Got it! Start Exam
+            </button>
+          ) : (
+            <button
+              onClick={() => setCurrentStep(currentStep + 1)}
+              className="px-8 py-3 rounded-xl font-bold text-sm bg-blue-600 text-white hover:bg-blue-700 transition-all"
+            >
+              Next
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- Sub-components ---
 
 const WelcomeView = ({ 
@@ -370,7 +494,9 @@ const WelcomeView = ({
   handleStartExam, 
   setStep,
   error,
-  isLoading
+  isLoading,
+  showDemo,
+  setShowDemo
 }: any) => (
   <div className="min-h-screen flex items-center justify-center p-4 md:p-6 lg:p-12">
     <div className="max-w-5xl w-full grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
@@ -389,6 +515,17 @@ const WelcomeView = ({
           Official JAMB UTME Simulation Platform. 
           Enter your registered details and one-time access code to begin.
         </p>
+        
+        {/* Demo Button */}
+        <button
+          onClick={() => setShowDemo(true)}
+          className="inline-flex items-center gap-3 px-6 py-3 bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 text-blue-700 rounded-xl font-bold text-sm transition-all hover:scale-105 active:scale-95 group"
+        >
+          <svg className="w-5 h-5 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>How to Use This Platform</span>
+        </button>
       </div>
 
       <div className="bg-white p-6 md:p-10 lg:p-12 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl shadow-blue-900/10 border border-slate-100 relative overflow-hidden animate-in fade-in slide-in-from-right-8 duration-1000">
@@ -459,9 +596,31 @@ const WelcomeView = ({
         </div>
       </div>
     </div>
-    <button onClick={() => setStep('admin-login')} className="fixed bottom-6 right-6 p-3 bg-white shadow-xl rounded-full text-slate-300 hover:text-blue-500 transition-all hover:scale-110 active:scale-95 border border-slate-100 no-print">
-      <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-    </button>
+    
+    {/* Help & Admin Buttons */}
+    <div className="fixed bottom-6 right-6 flex flex-col gap-3">
+      <button 
+        onClick={() => setShowDemo(true)}
+        className="p-3 bg-white shadow-xl rounded-full text-blue-500 hover:text-blue-600 transition-all hover:scale-110 active:scale-95 border border-slate-100 no-print group"
+        title="How to Use This Platform"
+      >
+        <svg className="w-5 h-5 md:w-6 md:h-6 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </button>
+      <button 
+        onClick={() => setStep('admin-login')} 
+        className="p-3 bg-white shadow-xl rounded-full text-slate-300 hover:text-blue-500 transition-all hover:scale-110 active:scale-95 border border-slate-100 no-print"
+        title="Admin Login"
+      >
+        <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        </svg>
+      </button>
+    </div>
+    
+    {/* Demo Guide Modal */}
+    {showDemo && <DemoGuide onClose={() => setShowDemo(false)} />}
   </div>
 );
 
@@ -477,6 +636,7 @@ const ExamView = ({
   onFinish 
 }: any) => {
   const [showNavigator, setShowNavigator] = useState(false);
+  const [showExamHelp, setShowExamHelp] = useState(false);
   
   const answeredCount = Object.keys(answers).length;
   const totalQuestions = activeQuestions.length;
@@ -525,6 +685,17 @@ const ExamView = ({
               <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">PROGRESS</span>
               <span className="text-sm font-black text-blue-600">{answeredCount}/{totalQuestions}</span>
             </div>
+            {/* Help Button */}
+            <button
+              type="button"
+              onClick={() => setShowExamHelp(true)}
+              className="p-2.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+              title="Exam Help"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
             {/* Red Submit Button styled as requested */}
             <button 
               type="button"
@@ -598,6 +769,93 @@ const ExamView = ({
           )}
         </div>
       </footer>
+      
+      {/* Exam Help Modal */}
+      {showExamHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white relative overflow-hidden">
+              <div className="absolute inset-0 opacity-10 font-black text-8xl -bottom-10 -right-10 pointer-events-none">HELP</div>
+              <div className="relative z-10 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="text-4xl">💡</div>
+                  <div>
+                    <h3 className="heading-font text-2xl font-black">Exam Navigation Guide</h3>
+                    <p className="text-blue-100 text-xs font-bold uppercase tracking-widest mt-1">Quick Tips</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowExamHelp(false)}
+                  className="p-2 hover:bg-white/20 rounded-full transition-all"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-8 flex-1 overflow-y-auto">
+              <div className="space-y-6">
+                <div className="space-y-3">
+                  <h4 className="font-black text-lg text-slate-900 flex items-center gap-2">
+                    <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-black">1</span>
+                    Answering Questions
+                  </h4>
+                  <p className="text-slate-700 pl-12">Click on any option (A, B, C, or D) to select your answer. Selected answers are highlighted in blue.</p>
+                </div>
+                
+                <div className="space-y-3">
+                  <h4 className="font-black text-lg text-slate-900 flex items-center gap-2">
+                    <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-black">2</span>
+                    Navigation
+                  </h4>
+                  <p className="text-slate-700 pl-12">Use <strong>Previous</strong> and <strong>Next</strong> buttons at the bottom, or click question numbers in the sidebar to jump to any question.</p>
+                </div>
+                
+                <div className="space-y-3">
+                  <h4 className="font-black text-lg text-slate-900 flex items-center gap-2">
+                    <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-black">3</span>
+                    Question Navigator
+                  </h4>
+                  <p className="text-slate-700 pl-12">On mobile, tap the menu icon (☰) to open the question navigator. Answered questions appear with a dark background.</p>
+                </div>
+                
+                <div className="space-y-3">
+                  <h4 className="font-black text-lg text-slate-900 flex items-center gap-2">
+                    <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-black">4</span>
+                    Timer
+                  </h4>
+                  <p className="text-slate-700 pl-12">Watch the timer at the top. You have <strong>60 minutes</strong> total. The exam will auto-submit when time runs out. Timer turns red when less than 5 minutes remain.</p>
+                </div>
+                
+                <div className="space-y-3">
+                  <h4 className="font-black text-lg text-slate-900 flex items-center gap-2">
+                    <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-black">5</span>
+                    Submitting
+                  </h4>
+                  <p className="text-slate-700 pl-12">Click the red <strong>SUBMIT</strong> button when you're ready to finish. You'll be asked to confirm before final submission.</p>
+                </div>
+                
+                <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4">
+                  <p className="text-sm text-amber-900 font-bold">
+                    ⚠️ <strong>Important:</strong> You can change your answers anytime before submitting. Once submitted, you cannot go back!
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="border-t border-slate-200 p-6">
+              <button
+                onClick={() => setShowExamHelp(false)}
+                className="w-full px-8 py-3 rounded-xl font-bold text-sm bg-blue-600 text-white hover:bg-blue-700 transition-all"
+              >
+                Got it, thanks!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -839,6 +1097,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingAdmin, setIsLoadingAdmin] = useState(true);
+  const [showDemo, setShowDemo] = useState(false);
 
   // Use a ref to always have access to current state in async closures
   const stateRef = useRef({ answers, studentName, desiredCourse, track, accessCode });
@@ -975,7 +1234,7 @@ export default function App() {
 
   return (
     <div className="selection:bg-blue-100 selection:text-blue-900">
-      {step === 'welcome' && <WelcomeView studentName={studentName} setStudentName={setStudentName} desiredCourse={desiredCourse} setDesiredCourse={setDesiredCourse} accessCode={accessCode} setAccessCode={setAccessCode} track={track} setTrack={setTrack} handleStartExam={handleStartExam} setStep={setStep} error={welcomeError} isLoading={isLoading} />}
+      {step === 'welcome' && <WelcomeView studentName={studentName} setStudentName={setStudentName} desiredCourse={desiredCourse} setDesiredCourse={setDesiredCourse} accessCode={accessCode} setAccessCode={setAccessCode} track={track} setTrack={setTrack} handleStartExam={handleStartExam} setStep={setStep} error={welcomeError} isLoading={isLoading} showDemo={showDemo} setShowDemo={setShowDemo} />}
       {step === 'exam' && (
         <>
           <ExamView q={activeQuestions[currentQuestionIndex]} activeQuestions={activeQuestions} currentQuestionIndex={currentQuestionIndex} setCurrentQuestionIndex={setCurrentQuestionIndex} timeLeft={timeLeft} studentName={studentName} answers={answers} setAnswers={setAnswers} onFinish={handleActualSubmit} />
