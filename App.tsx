@@ -662,11 +662,92 @@ const ExamView = ({
 };
 
 const AdminPanel = ({ results, onLogout, isLoading }: { results: StudentResult[], onLogout: () => void, isLoading: boolean }) => {
+  const downloadReport = () => {
+    if (results.length === 0) {
+      alert('No results to download');
+      return;
+    }
+
+    // Create CSV headers
+    const headers = ['S/N', 'Result ID', 'Candidate Name', 'Course', 'Track', 'Access Code', 'Score (Marks)', 'Total Possible (Marks)', 'Percentage (%)', 'Date & Time'];
+    
+    // Create CSV rows
+    const csvRows = [
+      headers.join(','),
+      ...results.map((r, index) => {
+        const scoreMarks = r.score * 5;
+        const totalMarks = r.totalPossible * 5;
+        const percentage = Math.round((r.score / r.totalPossible) * 100);
+        const date = new Date(r.timestamp);
+        const dateStr = date.toLocaleString('en-US', { 
+          year: 'numeric', 
+          month: '2-digit', 
+          day: '2-digit', 
+          hour: '2-digit', 
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        });
+        
+        // Escape commas and quotes in values
+        const escapeCSV = (value: string | number) => {
+          const str = String(value);
+          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        };
+        
+        return [
+          index + 1,
+          escapeCSV(r.id),
+          escapeCSV(r.name),
+          escapeCSV(r.course),
+          escapeCSV(r.track),
+          escapeCSV(r.accessCode),
+          scoreMarks,
+          totalMarks,
+          percentage,
+          escapeCSV(dateStr)
+        ].join(',');
+      })
+    ];
+
+    // Create CSV content
+    const csvContent = csvRows.join('\n');
+    
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `nova-academy-mock-exam-results-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-10">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-4">
         <h1 className="heading-font text-4xl font-black">RECORDS.</h1>
-        <button onClick={onLogout} className="bg-white px-6 py-3 rounded-xl font-black text-xs border border-slate-200 shadow-sm">LOGOUT</button>
+        <div className="flex gap-3">
+          <button 
+            onClick={downloadReport}
+            disabled={results.length === 0 || isLoading}
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl font-black text-xs border border-transparent shadow-sm transition-all flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Download Report (CSV)
+          </button>
+          <button onClick={onLogout} className="bg-white px-6 py-3 rounded-xl font-black text-xs border border-slate-200 shadow-sm hover:bg-slate-50 transition-all">LOGOUT</button>
+        </div>
       </div>
       <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden overflow-x-auto relative min-h-[400px]">
         {isLoading && results.length === 0 ? (
