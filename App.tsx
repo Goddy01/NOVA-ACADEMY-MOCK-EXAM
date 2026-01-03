@@ -699,7 +699,7 @@ const AdminPanel = ({ results, onLogout, isLoading }: { results: StudentResult[]
                       <span className="text-[10px] text-blue-500">#{r.id}</span>
                     </td>
                     <td className="p-8 font-mono text-xs">{r.accessCode}</td>
-                    <td className="p-8 text-center font-black">{r.score}/{r.totalPossible}</td>
+                    <td className="p-8 text-center font-black">{r.score * 5}/{r.totalPossible * 5}</td>
                     <td className="p-8 text-right text-xs">{new Date(r.timestamp).toLocaleDateString()}</td>
                   </tr>
                 ))
