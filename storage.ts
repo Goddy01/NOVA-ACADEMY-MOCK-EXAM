@@ -25,7 +25,7 @@ const getBinId = async (): Promise<string> => {
   if (cachedBinId) return cachedBinId;
   
   // Use shared bin ID if configured (for cross-device sync)
-  if (SHARED_BIN_ID && SHARED_BIN_ID !== 'YOUR_SHARED_BIN_ID') {
+  if (SHARED_BIN_ID && SHARED_BIN_ID !== '6959442fd0ea881f4051f28d') {
     // Verify bin exists by trying to read it
     try {
       const response = await fetch(`${API_URL}/b/${SHARED_BIN_ID}/latest`, {
