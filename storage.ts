@@ -9,7 +9,7 @@ const JSONBIN_API_KEY = '$2a$10$bubE9G3Jgcou13efLEEhwu0YPBmCxSolN27qde.Ae0AN7Wri
 // 2. Copy the bin ID from the URL (e.g., if URL is https://jsonbin.io/app/bins/65abc123..., the ID is 65abc123...)
 // 3. Replace 'YOUR_SHARED_BIN_ID' below with that ID
 // 4. All devices will then share the same data!
-const SHARED_BIN_ID = '6959442fd0ea881f4051f28d'; // Replace with your actual bin ID for cross-device sync
+const SHARED_BIN_ID = '6959453bae596e708fc282a4'; // Replace with your actual bin ID for cross-device sync
 
 const API_URL = 'https://api.jsonbin.io/v3';
 
@@ -25,7 +25,7 @@ const getBinId = async (): Promise<string> => {
   if (cachedBinId) return cachedBinId;
   
   // Use shared bin ID if configured (for cross-device sync)
-  if (SHARED_BIN_ID && SHARED_BIN_ID !== '6959442fd0ea881f4051f28d') {
+  if (SHARED_BIN_ID && SHARED_BIN_ID !== '6959453bae596e708fc282a4') {
     // Verify bin exists by trying to read it
     try {
       const response = await fetch(`${API_URL}/b/${SHARED_BIN_ID}/latest`, {
