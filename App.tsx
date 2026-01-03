@@ -3,6 +3,183 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { AppStep, CourseTrack, StudentResult, Question } from './types';
 import { QUESTIONS } from './questions';
 
+// --- Screenshot/Recording Prevention ---
+let screenshotPreventionHandlers: {
+  contextmenu?: (e: MouseEvent) => boolean;
+  keydown?: (e: KeyboardEvent) => boolean;
+  selectstart?: (e: Event) => boolean;
+  dragstart?: (e: DragEvent) => boolean;
+  copy?: (e: ClipboardEvent) => boolean;
+  cut?: (e: ClipboardEvent) => boolean;
+} = {};
+let devtoolsInterval: any = null;
+let preventionStyle: HTMLStyleElement | null = null;
+
+const preventScreenshot = () => {
+  // Disable right-click context menu
+  screenshotPreventionHandlers.contextmenu = (e: MouseEvent) => {
+    e.preventDefault();
+    return false;
+  };
+
+  // Disable keyboard shortcuts
+  screenshotPreventionHandlers.keydown = (e: KeyboardEvent) => {
+    // Print Screen
+    if (e.key === 'PrintScreen' || (e.ctrlKey && e.shiftKey && e.key === 'I') || (e.ctrlKey && e.shiftKey && e.key === 'J') || (e.ctrlKey && e.key === 'U')) {
+      e.preventDefault();
+      return false;
+    }
+    // F12 (DevTools)
+    if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C'))) {
+      e.preventDefault();
+      return false;
+    }
+    // Ctrl+S (Save Page)
+    if (e.ctrlKey && e.key === 's') {
+      e.preventDefault();
+      return false;
+    }
+    // Ctrl+P (Print)
+    if (e.ctrlKey && e.key === 'p') {
+      e.preventDefault();
+      return false;
+    }
+    // Ctrl+Shift+P (Print or DevTools)
+    if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+      e.preventDefault();
+      return false;
+    }
+    return true;
+  };
+
+  // Prevent text selection
+  screenshotPreventionHandlers.selectstart = (e: Event) => {
+    e.preventDefault();
+    return false;
+  };
+
+  // Prevent drag
+  screenshotPreventionHandlers.dragstart = (e: DragEvent) => {
+    e.preventDefault();
+    return false;
+  };
+
+  // Disable copy/paste
+  screenshotPreventionHandlers.copy = (e: ClipboardEvent) => {
+    e.clipboardData?.setData('text/plain', '');
+    e.preventDefault();
+    return false;
+  };
+
+  screenshotPreventionHandlers.cut = (e: ClipboardEvent) => {
+    e.preventDefault();
+    return false;
+  };
+
+  // Add event listeners
+  if (screenshotPreventionHandlers.contextmenu) {
+    document.addEventListener('contextmenu', screenshotPreventionHandlers.contextmenu);
+  }
+  if (screenshotPreventionHandlers.keydown) {
+    document.addEventListener('keydown', screenshotPreventionHandlers.keydown);
+  }
+  if (screenshotPreventionHandlers.selectstart) {
+    document.addEventListener('selectstart', screenshotPreventionHandlers.selectstart);
+  }
+  if (screenshotPreventionHandlers.dragstart) {
+    document.addEventListener('dragstart', screenshotPreventionHandlers.dragstart);
+  }
+  if (screenshotPreventionHandlers.copy) {
+    document.addEventListener('copy', screenshotPreventionHandlers.copy);
+  }
+  if (screenshotPreventionHandlers.cut) {
+    document.addEventListener('cut', screenshotPreventionHandlers.cut);
+  }
+
+  // Detect DevTools opening
+  let devtools = { open: false };
+  const detectDevTools = () => {
+    const threshold = 160;
+    if (window.outerHeight - window.innerHeight > threshold || window.outerWidth - window.innerWidth > threshold) {
+      if (!devtools.open) {
+        devtools.open = true;
+        alert('Developer tools detected. Please close them to continue.');
+      }
+    } else {
+      devtools.open = false;
+    }
+  };
+  devtoolsInterval = setInterval(detectDevTools, 500);
+
+  // Try to disable screen capture API (limited browser support)
+  if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+    const originalGetDisplayMedia = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
+    (navigator.mediaDevices as any).getDisplayMedia = function(...args: any[]) {
+      console.warn('Screen capture blocked');
+      return Promise.reject(new Error('Screen capture is disabled for security reasons'));
+    };
+  }
+
+  // CSS to prevent selection
+  if (!preventionStyle) {
+    preventionStyle = document.createElement('style');
+    preventionStyle.id = 'exam-protection-style';
+    preventionStyle.textContent = `
+      * {
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
+        user-select: none !important;
+        -webkit-touch-callout: none !important;
+        -webkit-tap-highlight-color: transparent !important;
+      }
+      input, textarea {
+        -webkit-user-select: text !important;
+        -moz-user-select: text !important;
+        -ms-user-select: text !important;
+        user-select: text !important;
+      }
+    `;
+    document.head.appendChild(preventionStyle);
+  }
+};
+
+const removeScreenshotPrevention = () => {
+  // Remove event listeners
+  if (screenshotPreventionHandlers.contextmenu) {
+    document.removeEventListener('contextmenu', screenshotPreventionHandlers.contextmenu);
+  }
+  if (screenshotPreventionHandlers.keydown) {
+    document.removeEventListener('keydown', screenshotPreventionHandlers.keydown);
+  }
+  if (screenshotPreventionHandlers.selectstart) {
+    document.removeEventListener('selectstart', screenshotPreventionHandlers.selectstart);
+  }
+  if (screenshotPreventionHandlers.dragstart) {
+    document.removeEventListener('dragstart', screenshotPreventionHandlers.dragstart);
+  }
+  if (screenshotPreventionHandlers.copy) {
+    document.removeEventListener('copy', screenshotPreventionHandlers.copy);
+  }
+  if (screenshotPreventionHandlers.cut) {
+    document.removeEventListener('cut', screenshotPreventionHandlers.cut);
+  }
+  
+  screenshotPreventionHandlers = {};
+  
+  // Clear intervals
+  if (devtoolsInterval) {
+    clearInterval(devtoolsInterval);
+    devtoolsInterval = null;
+  }
+  
+  // Remove style
+  if (preventionStyle && preventionStyle.parentNode) {
+    preventionStyle.parentNode.removeChild(preventionStyle);
+    preventionStyle = null;
+  }
+};
+
 // --- Constants ---
 const ALLOWED_CODES = [
   'NV-8821-XP', 'NV-4732-LQ', 'NV-9105-BR', 'NV-2287-KS',
@@ -278,6 +455,16 @@ const ResultView = ({ currentResult, handleReturnToDashboard, handlePrint }: any
   const percentage = Math.round((currentResult.score / currentResult.totalPossible) * 100);
   const isPass = percentage >= 50;
 
+  // Get the questions that were in this exam based on track
+  const examQuestions = useMemo(() => {
+    return QUESTIONS.filter(q => {
+      const commonIds = [...Array.from({length: 10}, (_, i) => i + 1), ...Array.from({length: 20}, (_, i) => i + 11), ...Array.from({length: 20}, (_, i) => i + 31), ...Array.from({length: 10}, (_, i) => i + 71)];
+      if (commonIds.includes(q.id)) return true;
+      if (currentResult.track === CourseTrack.BIOLOGICAL) return q.id >= 51 && q.id <= 70;
+      return q.id >= 81 && q.id <= 100;
+    }).sort((a, b) => a.id - b.id);
+  }, [currentResult.track]);
+
   return (
     <div className="min-h-screen p-4 md:p-8 flex items-center justify-center bg-slate-50">
       <div id="print-area" className="max-w-4xl w-full bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-700 print:shadow-none print:border-none print:rounded-none">
@@ -313,6 +500,101 @@ const ResultView = ({ currentResult, handleReturnToDashboard, handlePrint }: any
             <div>
               <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Course Choice</p>
               <p className="text-xl font-bold text-slate-800">{currentResult.course}</p>
+            </div>
+          </div>
+
+          {/* Answer Breakdown Section */}
+          <div className="mt-12 space-y-6">
+            <h3 className="heading-font text-2xl md:text-3xl font-black text-slate-900 uppercase tracking-tight">Answer Review</h3>
+            <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+              {examQuestions.map((question, idx) => {
+                const studentAnswer = currentResult.answers[question.id];
+                const isCorrect = studentAnswer === question.correctAnswer;
+                const hasAnswer = studentAnswer !== undefined && studentAnswer !== null && studentAnswer !== '';
+
+                return (
+                  <div
+                    key={question.id}
+                    className={`p-6 rounded-2xl border-2 transition-all ${
+                      isCorrect
+                        ? 'bg-green-50 border-green-200'
+                        : hasAnswer
+                        ? 'bg-red-50 border-red-200'
+                        : 'bg-amber-50 border-amber-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                      <div className="flex items-center gap-3 flex-1">
+                        <span className="px-3 py-1 bg-white border border-slate-200 rounded-full text-[10px] font-black text-slate-400 uppercase">
+                          {question.subject}
+                        </span>
+                        <span className="text-[10px] font-black text-slate-300 uppercase">Question {idx + 1}</span>
+                        <span className="text-xs font-bold text-slate-500">ID: {question.id}</span>
+                      </div>
+                      <div className="flex-shrink-0">
+                        {isCorrect ? (
+                          <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                        ) : hasAnswer ? (
+                          <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </div>
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center">
+                            <span className="text-white text-xs font-black">?</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-base md:text-lg font-semibold text-slate-800 mb-4">{question.text}</p>
+                    <div className="space-y-2">
+                      {question.options.map((opt) => {
+                        const isSelected = studentAnswer === opt.label;
+                        const isCorrectOption = opt.label === question.correctAnswer;
+                        return (
+                          <div
+                            key={opt.label}
+                            className={`p-3 rounded-xl border-2 flex items-center gap-3 ${
+                              isCorrectOption
+                                ? 'bg-green-100 border-green-300'
+                                : isSelected
+                                ? 'bg-red-100 border-red-300'
+                                : 'bg-white border-slate-200'
+                            }`}
+                          >
+                            <div
+                              className={`h-8 w-8 rounded-lg flex items-center justify-center font-black text-sm uppercase ${
+                                isCorrectOption
+                                  ? 'bg-green-500 text-white'
+                                  : isSelected
+                                  ? 'bg-red-500 text-white'
+                                  : 'bg-slate-100 text-slate-400'
+                              }`}
+                            >
+                              {opt.label}
+                            </div>
+                            <span className="flex-1 text-sm md:text-base font-medium text-slate-700">{opt.text}</span>
+                            {isCorrectOption && (
+                              <span className="text-xs font-black text-green-600 uppercase">Correct</span>
+                            )}
+                            {isSelected && !isCorrectOption && (
+                              <span className="text-xs font-black text-red-600 uppercase">Your Answer</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {!hasAnswer && (
+                      <div className="mt-3 text-xs font-bold text-amber-600 uppercase">Not Answered</div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -407,6 +689,22 @@ export default function App() {
     }
     return () => clearInterval(timer);
   }, [step, timeLeft, handleActualSubmit]);
+
+  // Activate screenshot/recording prevention during exam
+  useEffect(() => {
+    if (step === 'exam') {
+      preventScreenshot();
+    } else {
+      removeScreenshotPrevention();
+    }
+    
+    // Cleanup on unmount or step change
+    return () => {
+      if (step !== 'exam') {
+        removeScreenshotPrevention();
+      }
+    };
+  }, [step]);
 
   const handleStartExam = () => {
     if (!studentName || !desiredCourse || !accessCode) return;
